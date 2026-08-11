@@ -8,17 +8,21 @@ import torch
 import torchaudio
 from pyannote.audio import Pipeline
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+MODEL_ROOT = Path(
+    os.getenv(
+        "MODEL_ROOT",
+        str(PROJECT_ROOT / "models"),
+    )
+).resolve()
+
 CONFIG_PATH = (
-    PROJECT_ROOT
-    / "models"
+    MODEL_ROOT
     / "pyannote"
     / "diarization"
     / "config.yaml"
 )
-
 
 class DiarizationService:
     def __init__(self) -> None:
