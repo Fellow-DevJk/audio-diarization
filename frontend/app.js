@@ -28,6 +28,11 @@ const speakerTimeline = document.querySelector('#speakerTimeline')
 const segmentsBody = document.querySelector('#segmentsBody')
 const overlapList = document.querySelector('#overlapList')
 
+const audioDurationElement = document.querySelector('#audioDuration')
+const realTimeFactorElement = document.querySelector('#realTimeFactor')
+const overlapSummaryElement = document.querySelector('#overlapSummary')
+const speakerStatsElement = document.querySelector('#speakerStats')
+
 let selectedFile = null
 let currentResult = null
 
@@ -290,18 +295,106 @@ function renderResults(result) {
   segmentCountElement.textContent =
     result.segment_count
 
+  audioDurationElement.textContent =
+  formatTime(result.audio_duration_seconds)
+
+  realTimeFactorElement.textContent =
+    result.real_time_factor !== null
+      ? `${result.real_time_factor.toFixed(2)}x`
+      : '—'
+
+  overlapSummaryElement.textContent =
+    `${result.overlap_count} · ` +
+    `${result.overlap_seconds.toFixed(2)} s`
+
   inferenceTimeElement.textContent =
     `${result.inference_seconds.toFixed(2)} s`
 
   deviceValueElement.textContent =
     result.device.toUpperCase()
 
+  renderSpeakerStats(result)
   renderLegend(result)
   renderTimeline(result)
   renderSegmentsTable(result)
   renderOverlaps(result)
 
   resultsPanel.classList.remove('hidden')
+}
+
+function renderSpeakerStats(result) {
+  speakerStatsElement.innerHTML = ''
+
+  for (const speaker of result.speakers) {
+    const stats = result.speaker_stats[speaker]
+
+    const card = document.createElement('div')
+    card.className = 'speaker-stat-card'
+
+    const header = document.createElement('div')
+    header.className = 'speaker-stat-header'
+
+    const identity = document.createElement('div')
+    identity.className = 'speaker-chip'
+
+    const dot = document.createElement('span')
+    dot.className = 'speaker-chip-dot'
+    dot.style.backgroundColor =
+      getSpeakerColor(speaker)
+
+    const name = document.createElement('strong')
+    name.textContent = speaker
+
+    identity.append(dot, name)
+
+    const percentage =
+      document.createElement('strong')
+
+    percentage.textContent =
+      `${stats.speaking_percentage.toFixed(1)}%`
+
+    header.append(identity, percentage)
+
+    const bar = document.createElement('div')
+    bar.className = 'speaker-stat-bar'
+
+    const fill = document.createElement('div')
+    fill.className = 'speaker-stat-fill'
+
+    fill.style.width =
+      `${Math.min(
+        stats.speaking_percentage,
+        100,
+      )}%`
+
+    fill.style.backgroundColor =
+      getSpeakerColor(speaker)
+
+    bar.appendChild(fill)
+
+    const details = document.createElement('div')
+    details.className = 'speaker-stat-details'
+
+    details.innerHTML = `
+      <span>
+        Speaking:
+        <strong>${formatTime(stats.speaking_seconds)}</strong>
+      </span>
+
+      <span>
+        Segments:
+        <strong>${stats.segment_count}</strong>
+      </span>
+    `
+
+    card.append(
+      header,
+      bar,
+      details,
+    )
+
+    speakerStatsElement.appendChild(card)
+  }
 }
 
 function renderLegend(result) {
