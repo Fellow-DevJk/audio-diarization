@@ -59,13 +59,29 @@ function formatTime(seconds) {
     return '00:00.0'
   }
 
-  const safeSeconds = Math.max(0, seconds)
-  const minutes = Math.floor(safeSeconds / 60)
-  const remainder = safeSeconds % 60
+  const totalTenths = Math.round(
+    Math.max(0, seconds) * 10
+  )
 
-  return `${String(minutes).padStart(2, '0')}:${remainder
-    .toFixed(1)
-    .padStart(4, '0')}`
+  const minutes = Math.floor(
+    totalTenths / 600
+  )
+
+  const remainingTenths =
+    totalTenths % 600
+
+  const wholeSeconds = Math.floor(
+    remainingTenths / 10
+  )
+
+  const tenths =
+    remainingTenths % 10
+
+  return (
+    `${String(minutes).padStart(2, '0')}:` +
+    `${String(wholeSeconds).padStart(2, '0')}.` +
+    `${tenths}`
+  )
 }
 
 function formatBytes(bytes) {
