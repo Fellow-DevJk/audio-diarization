@@ -1,0 +1,40 @@
+FROM python:3.10-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MODEL_ROOT=/app/models
+
+WORKDIR /app
+
+# Audio/runtime system libraries.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CPU PyTorch explicitly from the PyTorch wheel index.
+RUN pip install \
+    torch==2.5.1 \
+    torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+COPY backend/requirements-container.txt \
+     /app/backend/requirements-container.txt
+
+RUN pip install \
+    -r /app/backend/requirements-container.txt
+
+# Application source.
+COPY backend/app /app/backend/app
+
+# Local model artifacts.
+COPY models /app/models
+
+# backend must be importable as a package.
+RUN touch /app/backend/__init__.py
+
+EXPOSE 8080
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
