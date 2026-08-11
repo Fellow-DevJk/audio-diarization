@@ -6,9 +6,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-
+from fastapi.middleware.cors import CORSMiddleware
 from .diarization_service import diarization_service
-
 
 ALLOWED_SUFFIXES = {
     ".wav",
@@ -37,6 +36,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 def health() -> dict:
