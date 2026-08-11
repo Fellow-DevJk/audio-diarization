@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <title>Speaker Diarization Demo</title>
+
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <main class="page-shell">
+
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Audio Intelligence Demo</p>
+        <h1>Speaker Diarization</h1>
+        <p class="hero-copy">
+          Upload a recording to identify speaker turns,
+          timestamps, and overlapping speech.
+        </p>
+      </div>
+
+      <div id="apiStatus" class="api-status">
+        Checking API…
+      </div>
+    </header>
+
+    <section class="card upload-card">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Input</p>
+          <h2>Audio recording</h2>
+        </div>
+      </div>
+
+      <label id="dropZone" class="drop-zone">
+        <input
+          id="audioInput"
+          type="file"
+          accept=".wav,.flac,.mp3,.m4a,audio/*"
+          hidden
+        >
+
+        <span class="upload-icon">↑</span>
+
+        <span class="drop-title">
+          Choose an audio file
+        </span>
+
+        <span class="drop-subtitle">
+          WAV, FLAC, MP3 or M4A
+        </span>
+      </label>
+
+      <div
+        id="selectedFile"
+        class="selected-file hidden"
+      ></div>
+
+      <div class="actions">
+        <button
+          id="analyzeButton"
+          class="button button-primary"
+          disabled
+        >
+          Analyze speakers
+        </button>
+
+        <button
+          id="clearButton"
+          class="button button-secondary"
+          disabled
+        >
+          Clear
+        </button>
+      </div>
+
+      <div
+        id="requestStatus"
+        class="request-status hidden"
+      ></div>
+    </section>
+
+    <section
+      id="audioPanel"
+      class="card hidden"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Playback</p>
+          <h2>Waveform</h2>
+        </div>
+
+        <div class="playback-clock">
+          <span id="currentTime">00:00.0</span>
+          <span>/</span>
+          <span id="totalTime">00:00.0</span>
+        </div>
+      </div>
+
+      <div id="waveform" class="waveform"></div>
+
+      <div class="waveform-controls">
+        <button
+          id="playButton"
+          class="button button-secondary"
+        >
+          Play
+        </button>
+      </div>
+    </section>
+
+    <section
+      id="resultsPanel"
+      class="results hidden"
+    >
+
+      <section class="summary-grid">
+        <article class="metric-card">
+          <p class="metric-label">Speakers</p>
+          <p id="speakerCount" class="metric-value">—</p>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Segments</p>
+          <p id="segmentCount" class="metric-value">—</p>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Inference</p>
+          <p id="inferenceTime" class="metric-value">—</p>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Device</p>
+          <p id="deviceValue" class="metric-value metric-small">—</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Analysis</p>
+            <h2>Speaker timeline</h2>
+          </div>
+
+          <p class="section-note">
+            Select a segment to jump to that point in the audio.
+          </p>
+        </div>
+
+        <div
+          id="speakerLegend"
+          class="speaker-legend"
+        ></div>
+
+        <div
+          id="speakerTimeline"
+          class="speaker-timeline"
+        ></div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Details</p>
+            <h2>Speaker segments</h2>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Speaker</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+
+            <tbody id="segmentsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section
+        id="overlapCard"
+        class="card hidden"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Cross-talk</p>
+            <h2>Overlapping speech</h2>
+          </div>
+        </div>
+
+        <div id="overlapList"></div>
+      </section>
+
+    </section>
+
+  </main>
+
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
