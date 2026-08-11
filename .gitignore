@@ -1,0 +1,30 @@
+# Model artifacts and original package
+models/
+models.zip
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime files
+outputs/
+tmp/
+*.log
+
+# IDE and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local diarization environment
+.venv-diarization/
+**/__pycache__/
+sample_audio/

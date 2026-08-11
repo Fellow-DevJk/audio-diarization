@@ -1,0 +1,2 @@
+setuptools<81
+requests>=2.31,<3
