@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000'
+const BROKER_URL = 'https://odqcrhoak7puol6pnxryi36muu0zajzv.lambda-url.ap-south-1.on.aws'
 
 const audioInput = document.querySelector('#audioInput')
 const dropZone = document.querySelector('#dropZone')
@@ -134,23 +134,39 @@ function clearRequestStatus() {
 
 async function checkApi() {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`)
+    const response = await fetch(
+      `${BROKER_URL}/health`
+    )
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
+      throw new Error(
+        `HTTP ${response.status}`
+      )
     }
 
-    const data = await response.json()
+    apiStatus.textContent =
+      'AWS backend ready'
+
+    apiStatus.classList.remove(
+      'offline'
+    )
+
+    apiStatus.classList.add(
+      'online'
+    )
+  } catch (error) {
+    console.error(error)
 
     apiStatus.textContent =
-      `API ready · ${data.device}`
+      'AWS backend unavailable'
 
-    apiStatus.classList.remove('offline')
-    apiStatus.classList.add('online')
-  } catch (error) {
-    apiStatus.textContent = 'API unavailable'
-    apiStatus.classList.remove('online')
-    apiStatus.classList.add('offline')
+    apiStatus.classList.remove(
+      'online'
+    )
+
+    apiStatus.classList.add(
+      'offline'
+    )
   }
 }
 
@@ -230,6 +246,179 @@ function resetInterface() {
   totalTimeElement.textContent = '00:00.0'
 }
 
+async function requestUploadUrl(file) {
+  const response = await fetch(
+    `${BROKER_URL}/upload-url`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':
+          'application/json',
+      },
+      body: JSON.stringify({
+        filename: file.name,
+      }),
+    },
+  )
+
+  const body =
+    await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      body.error ||
+      'Could not create upload URL.',
+    )
+  }
+
+  return body
+}
+
+
+async function uploadAudioToS3(
+  file,
+  uploadUrl,
+  contentType,
+) {
+  const response = await fetch(
+    uploadUrl,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type':
+          contentType,
+      },
+      body: file,
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      `Audio upload failed ` +
+      `(${response.status}).`,
+    )
+  }
+}
+
+
+async function startAsyncInference(
+  inputKey,
+  contentType,
+) {
+  const response = await fetch(
+    `${BROKER_URL}/invoke`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':
+          'application/json',
+      },
+      body: JSON.stringify({
+        input_key: inputKey,
+        content_type: contentType,
+      }),
+    },
+  )
+
+  const body =
+    await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      body.error ||
+      'Could not start diarization.',
+    )
+  }
+
+  return body
+}
+
+
+function sleep(milliseconds) {
+  return new Promise(
+    resolve =>
+      setTimeout(
+        resolve,
+        milliseconds,
+      ),
+  )
+}
+
+
+async function waitForInference(
+  outputLocation,
+  failureLocation,
+) {
+  const pollIntervalMs = 3000
+  const maxAttempts = 200
+
+  for (
+    let attempt = 1;
+    attempt <= maxAttempts;
+    attempt++
+  ) {
+    setRequestStatus(
+      `Processing audio… ` +
+      `(check ${attempt})`,
+    )
+
+    const response = await fetch(
+      `${BROKER_URL}/result`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+        body: JSON.stringify({
+          output_location:
+            outputLocation,
+          failure_location:
+            failureLocation,
+        }),
+      },
+    )
+
+    const body =
+      await response.json()
+
+    if (
+      response.ok &&
+      body.status === 'completed'
+    ) {
+      return body.result
+    }
+
+    if (
+      body.status === 'failed'
+    ) {
+      throw new Error(
+        body.error ||
+        'Diarization failed.',
+      )
+    }
+
+    if (
+      response.status !== 202 &&
+      !response.ok
+    ) {
+      throw new Error(
+        body.error ||
+        `Result check failed ` +
+        `(${response.status}).`,
+      )
+    }
+
+    await sleep(
+      pollIntervalMs
+    )
+  }
+
+  throw new Error(
+    'Diarization timed out.'
+  )
+}
+
 async function analyzeAudio() {
   if (!selectedFile) {
     return
@@ -238,53 +427,76 @@ async function analyzeAudio() {
   analyzeButton.disabled = true
   clearButton.disabled = true
 
-  const originalButtonText = analyzeButton.textContent
+  const originalButtonText =
+    analyzeButton.textContent
 
-  analyzeButton.textContent = 'Analyzing…'
-
-  setRequestStatus(
-    'Uploading audio and running speaker diarization…',
-  )
+  analyzeButton.textContent =
+    'Analyzing…'
 
   try {
-    const formData = new FormData()
-    formData.append('audio', selectedFile)
-
-    const response = await fetch(
-      `${API_BASE_URL}/diarize`,
-      {
-        method: 'POST',
-        body: formData,
-      },
+    setRequestStatus(
+      'Preparing secure upload…'
     )
 
-    const body = await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        body.detail ||
-        `Request failed with status ${response.status}`,
+    const uploadInfo =
+      await requestUploadUrl(
+        selectedFile
       )
-    }
-
-    currentResult = body
-
-    renderResults(body)
 
     setRequestStatus(
-      `Analysis complete in ${body.inference_seconds.toFixed(2)} seconds.`,
+      'Uploading audio to AWS…'
+    )
+
+    await uploadAudioToS3(
+      selectedFile,
+      uploadInfo.upload_url,
+      uploadInfo.content_type,
+    )
+
+    setRequestStatus(
+      'Starting GPU diarization…'
+    )
+
+    const inference =
+      await startAsyncInference(
+        uploadInfo.input_key,
+        uploadInfo.content_type,
+      )
+
+    setRequestStatus(
+      'Running diarization on GPU…'
+    )
+
+    const result =
+      await waitForInference(
+        inference.output_location,
+        inference.failure_location,
+      )
+
+    currentResult = result
+
+    renderResults(result)
+
+    setRequestStatus(
+      `Analysis complete in ` +
+      `${result.inference_seconds.toFixed(2)} ` +
+      `seconds on ` +
+      `${result.device.toUpperCase()}.`,
     )
   } catch (error) {
     console.error(error)
 
     setRequestStatus(
-      error.message || 'Diarization failed.',
+      error.message ||
+      'Diarization failed.',
       true,
     )
   } finally {
     analyzeButton.disabled = false
     clearButton.disabled = false
-    analyzeButton.textContent = originalButtonText
+
+    analyzeButton.textContent =
+      originalButtonText
   }
 }
 

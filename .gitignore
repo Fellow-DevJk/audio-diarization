@@ -28,3 +28,4 @@ Thumbs.db
 .venv-diarization/
 **/__pycache__/
 sample_audio/
+broker.zip

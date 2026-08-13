@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AccessDemoAudioObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::audio-diarization-demo-134857759074-ap-south-1/*"
+    },
+    {
+      "Sid": "InvokeAsyncDiarizationEndpoint",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:InvokeEndpointAsync"
+      ],
+      "Resource": "arn:aws:sagemaker:ap-south-1:134857759074:endpoint/audio-diarization-demo"
+    }
+  ]
+}
