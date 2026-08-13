@@ -1,5 +1,5 @@
-const BROKER_URL = 'https://odqcrhoak7puol6pnxryi36muu0zajzv.lambda-url.ap-south-1.on.aws'
-
+const BROKER_URL = window.APP_CONFIG.brokerUrl
+const MAX_UPLOAD_BYTES = window.APP_CONFIG.maxUploadBytes
 const audioInput = document.querySelector('#audioInput')
 const dropZone = document.querySelector('#dropZone')
 const selectedFileElement = document.querySelector('#selectedFile')
