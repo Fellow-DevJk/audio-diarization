@@ -1,0 +1,9 @@
+{
+  "OutputConfig": {
+    "S3OutputPath": "s3://audio-diarization-demo-134857759074-ap-south-1/async-output/",
+    "S3FailurePath": "s3://audio-diarization-demo-134857759074-ap-south-1/async-failure/"
+  },
+  "ClientConfig": {
+    "MaxConcurrentInvocationsPerInstance": 1
+  }
+}

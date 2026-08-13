@@ -1,0 +1,53 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudWatchLogging",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricData",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ListDemoBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::audio-diarization-demo-134857759074-ap-south-1"
+    },
+    {
+      "Sid": "AccessAsyncObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::audio-diarization-demo-134857759074-ap-south-1/*"
+    },
+    {
+      "Sid": "ECRAuthorization",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PullInferenceImage",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "arn:aws:ecr:ap-south-1:134857759074:repository/audio-diarization"
+    }
+  ]
+}
