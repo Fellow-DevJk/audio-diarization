@@ -379,8 +379,18 @@ async function waitForInference(
       },
     )
 
-    const body =
-      await response.json()
+    const rawBody = await response.text()
+
+    let body
+
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      throw new Error(
+        `Backend returned HTTP ${response.status}: ` +
+        (rawBody || 'empty response')
+      )
+    }
 
     if (
       response.ok &&

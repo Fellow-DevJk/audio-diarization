@@ -12,6 +12,14 @@
       "Resource": "*"
     },
     {
+      "Sid": "ListDemoBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::audio-diarization-demo-134857759074-ap-south-1"
+    },
+    {
       "Sid": "AccessDemoAudioObjects",
       "Effect": "Allow",
       "Action": [
