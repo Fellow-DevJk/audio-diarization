@@ -28,6 +28,13 @@ const speakerTimeline = document.querySelector('#speakerTimeline')
 const segmentsBody = document.querySelector('#segmentsBody')
 const overlapList = document.querySelector('#overlapList')
 
+const previewReportButton = document.querySelector('#previewReportButton')
+const downloadReportButton = document.querySelector('#downloadReportButton')
+const printReportButton = document.querySelector('#printReportButton')
+const reportModal = document.querySelector('#reportModal')
+const reportPreview = document.querySelector('#reportPreview')
+const closeReportButton = document.querySelector('#closeReportButton')
+
 const audioDurationElement = document.querySelector('#audioDuration')
 const realTimeFactorElement = document.querySelector('#realTimeFactor')
 const overlapSummaryElement = document.querySelector('#overlapSummary')
@@ -35,6 +42,7 @@ const speakerStatsElement = document.querySelector('#speakerStats')
 
 let selectedFile = null
 let currentResult = null
+let currentReportUrl = null
 
 const speakerColors = [
   '#3157d5',
@@ -178,6 +186,9 @@ async function loadSelectedFile(file) {
   selectedFile = file
   currentResult = null
 
+  disableReportActions()
+  closeReportPreview()
+
   selectedFileElement.textContent =
     `${file.name} · ${formatBytes(file.size)}`
 
@@ -219,7 +230,8 @@ async function loadSelectedFile(file) {
 function resetInterface() {
   selectedFile = null
   currentResult = null
-
+  disableReportActions()
+  closeReportPreview()
   audioInput.value = ''
 
   selectedFileElement.textContent = ''
@@ -257,6 +269,7 @@ async function requestUploadUrl(file) {
       },
       body: JSON.stringify({
         filename: file.name,
+        size_bytes: file.size,
       }),
     },
   )
@@ -429,7 +442,128 @@ async function waitForInference(
   )
 }
 
+function disableReportActions() {
+  previewReportButton.disabled = true
+  downloadReportButton.disabled = true
+  printReportButton.disabled = true
+}
+
+function enableReportActions() {
+  previewReportButton.disabled = false
+  downloadReportButton.disabled = false
+  printReportButton.disabled = false
+}
+
+function revokeCurrentReportUrl() {
+  if (currentReportUrl) {
+    URL.revokeObjectURL(
+      currentReportUrl
+    )
+
+    currentReportUrl = null
+  }
+}
+
+function closeReportPreview() {
+  reportModal.classList.add(
+    'hidden'
+  )
+
+  reportPreview.src = ''
+
+  revokeCurrentReportUrl()
+}
+
+async function previewCurrentReport() {
+  if (
+    !currentResult ||
+    !selectedFile
+  ) {
+    return
+  }
+
+  revokeCurrentReportUrl()
+
+  const blob =
+    await window.DiarizationReport
+      .createBlob(
+        currentResult,
+        selectedFile,
+      )
+
+  currentReportUrl =
+    URL.createObjectURL(blob)
+
+  reportPreview.src = currentReportUrl
+
+  reportModal.classList.remove(
+    'hidden'
+  )
+}
+
+async function downloadCurrentReport() {
+  if (
+    !currentResult ||
+    !selectedFile
+  ) {
+    return
+  }
+
+  await window.DiarizationReport
+    .download(
+      currentResult,
+      selectedFile,
+    )
+}
+
+async function printCurrentReport() {
+  if (
+    !currentResult ||
+    !selectedFile
+  ) {
+    return
+  }
+
+  revokeCurrentReportUrl()
+
+  const blob =
+    await window.DiarizationReport
+      .createBlob(
+        currentResult,
+        selectedFile,
+      )
+
+  currentReportUrl =
+    URL.createObjectURL(blob)
+
+  const printWindow =
+    window.open(
+      currentReportUrl,
+      '_blank',
+    )
+
+  if (!printWindow) {
+    setRequestStatus(
+      'The browser blocked the report window.',
+      true,
+    )
+  }
+}
+
 async function analyzeAudio() {
+  if (
+    selectedFile.size > MAX_UPLOAD_BYTES
+  ) {
+    setRequestStatus(
+      `Maximum demo file size is ` +
+      `${formatBytes(
+        MAX_UPLOAD_BYTES
+      )}.`,
+      true,
+    )
+
+    return
+  }
   if (!selectedFile) {
     return
   }
@@ -486,7 +620,7 @@ async function analyzeAudio() {
     currentResult = result
 
     renderResults(result)
-
+    enableReportActions()
     setRequestStatus(
       `Analysis complete in ` +
       `${result.inference_seconds.toFixed(2)} ` +
@@ -984,6 +1118,51 @@ analyzeButton.addEventListener(
 clearButton.addEventListener(
   'click',
   resetInterface,
+)
+
+previewReportButton.addEventListener(
+  'click',
+  previewCurrentReport,
+)
+
+downloadReportButton.addEventListener(
+  'click',
+  downloadCurrentReport,
+)
+
+printReportButton.addEventListener(
+  'click',
+  printCurrentReport,
+)
+
+closeReportButton.addEventListener(
+  'click',
+  closeReportPreview,
+)
+
+reportModal.addEventListener(
+  'click',
+  event => {
+    if (
+      event.target ===
+      reportModal
+    ) {
+      closeReportPreview()
+    }
+  },
+)
+
+document.addEventListener(
+  'keydown',
+  event => {
+    if (
+      event.key === 'Escape' &&
+      !reportModal.classList
+        .contains('hidden')
+    ) {
+      closeReportPreview()
+    }
+  },
 )
 
 playButton.addEventListener(

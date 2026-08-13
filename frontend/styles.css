@@ -541,3 +541,89 @@ td {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
+
+.report-card .actions {
+  flex-wrap: wrap;
+}
+
+.report-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background:
+    rgba(15, 23, 42, 0.78);
+
+  backdrop-filter: blur(6px);
+}
+
+.report-modal.hidden {
+  display: none;
+}
+
+.report-modal-shell {
+  width: min(1200px, 100%);
+  height: min(92vh, 1000px);
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  border: 1px solid
+    var(--border);
+
+  border-radius: 20px;
+
+  background:
+    var(--surface);
+}
+
+.report-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 20px 24px;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+.report-modal-header h2 {
+  margin: 0;
+}
+
+.report-preview {
+  display: block;
+
+  width: 100%;
+  flex: 1;
+
+  border: 0;
+
+  background: #fff;
+}
+
+@media (max-width: 700px) {
+  .report-modal {
+    padding: 8px;
+  }
+
+  .report-modal-shell {
+    height: 96vh;
+    border-radius: 12px;
+  }
+
+  .report-modal-header {
+    align-items: flex-start;
+    padding: 16px;
+  }
+}

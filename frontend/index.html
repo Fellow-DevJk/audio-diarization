@@ -156,6 +156,45 @@
         </article>
       </section>
 
+      <section class="card report-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Report</p>
+            <h2>Analysis report</h2>
+          </div>
+
+          <p class="section-note">
+            Generate a PDF from the current diarization result.
+          </p>
+        </div>
+
+        <div class="actions">
+          <button
+            id="previewReportButton"
+            class="button button-secondary"
+            disabled
+          >
+            Preview report
+          </button>
+
+          <button
+            id="downloadReportButton"
+            class="button button-primary"
+            disabled
+          >
+            Download PDF
+          </button>
+
+          <button
+            id="printReportButton"
+            class="button button-secondary"
+            disabled
+          >
+            Print
+          </button>
+        </div>
+      </section>
+
       <section class="card">
         <div class="section-heading">
           <div>
@@ -233,11 +272,52 @@
       </section>
 
     </section>
+    
+    <!-- ====================================== -->
+    <!-- REPORT PREVIEW MODAL -->
+    <!-- ====================================== -->
+
+    <div
+      id="reportModal"
+      class="report-modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reportModalTitle"
+    >
+      <div class="report-modal-shell">
+
+        <div class="report-modal-header">
+          <div>
+            <p class="section-kicker">Preview</p>
+
+            <h2 id="reportModalTitle">
+              Speaker Diarization Analysis Report
+            </h2>
+          </div>
+
+          <button
+            id="closeReportButton"
+            class="button button-secondary"
+          >
+            Close
+          </button>
+        </div>
+        <iframe
+          id="reportPreview"
+          class="report-preview"
+          title="Speaker diarization report preview"
+        ></iframe>
+      </div>
+    </div>
 
   </main>
 
   <script src="https://unpkg.com/wavesurfer.js@7"></script>
+
+  <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./config.js"></script>
+  <script src="./report.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
