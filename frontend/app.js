@@ -39,10 +39,40 @@ const audioDurationElement = document.querySelector('#audioDuration')
 const realTimeFactorElement = document.querySelector('#realTimeFactor')
 const overlapSummaryElement = document.querySelector('#overlapSummary')
 const speakerStatsElement = document.querySelector('#speakerStats')
+const verificationCard =
+  document.querySelector('#verificationCard')
+
+const verificationSpeaker =
+  document.querySelector('#verificationSpeaker')
+
+const referenceAudioInput =
+  document.querySelector('#referenceAudioInput')
+
+const referenceFileElement =
+  document.querySelector('#referenceFile')
+
+const verifySpeakerButton =
+  document.querySelector('#verifySpeakerButton')
+
+const clearVerificationButton =
+  document.querySelector('#clearVerificationButton')
+
+const verificationStatus =
+  document.querySelector('#verificationStatus')
+
+const verificationResultElement =
+  document.querySelector('#verificationResult')
 
 let selectedFile = null
 let currentResult = null
 let currentReportUrl = null
+
+let currentInputKey = null
+
+let referenceFile = null
+let referenceInputKey = null
+
+let currentVerificationResult = null
 
 const speakerColors = [
   '#3157d5',
@@ -140,6 +170,100 @@ function clearRequestStatus() {
   requestStatus.classList.remove('error')
 }
 
+function setVerificationStatus(
+  message,
+  isError = false,
+) {
+  verificationStatus.textContent =
+    message
+
+  verificationStatus.classList.remove(
+    'hidden',
+    'error',
+  )
+
+  if (isError) {
+    verificationStatus.classList.add(
+      'error'
+    )
+  }
+}
+
+function clearVerificationStatus() {
+  verificationStatus.textContent = ''
+
+  verificationStatus.classList.add(
+    'hidden'
+  )
+
+  verificationStatus.classList.remove(
+    'error'
+  )
+}
+
+function resetVerification() {
+  referenceFile = null
+  referenceInputKey = null
+  currentVerificationResult = null
+
+  referenceAudioInput.value = ''
+
+  referenceFileElement.textContent = ''
+  referenceFileElement.classList.add(
+    'hidden'
+  )
+
+  verificationResultElement.innerHTML = ''
+  verificationResultElement.classList.add(
+    'hidden'
+  )
+
+  clearVerificationStatus()
+
+  clearVerificationButton.disabled = true
+
+  verifySpeakerButton.disabled = (
+    !currentResult ||
+    !currentInputKey
+  )
+}
+
+function populateVerificationSpeakers(
+  result,
+) {
+  verificationSpeaker.innerHTML = ''
+
+  for (const speaker of result.speakers) {
+    const option =
+      document.createElement('option')
+
+    option.value = speaker
+    option.textContent = speaker
+
+    verificationSpeaker.appendChild(
+      option
+    )
+  }
+
+  verificationSpeaker.disabled =
+    result.speakers.length <= 1
+}
+
+function showVerificationCard(
+  result,
+) {
+  populateVerificationSpeakers(
+    result
+  )
+
+  verificationCard.classList.remove(
+    'hidden'
+  )
+
+  verifySpeakerButton.disabled =
+    referenceFile === null
+}
+
 async function checkApi() {
   try {
     const response = await fetch(
@@ -186,6 +310,12 @@ async function loadSelectedFile(file) {
   selectedFile = file
   currentResult = null
 
+  currentInputKey = null
+
+  referenceFile = null
+  referenceInputKey = null
+  currentVerificationResult = null
+
   disableReportActions()
   closeReportPreview()
 
@@ -199,6 +329,11 @@ async function loadSelectedFile(file) {
 
   resultsPanel.classList.add('hidden')
   overlapCard.classList.add('hidden')
+  verificationCard.classList.add(
+    'hidden'
+  )
+
+  resetVerification()
 
   clearRequestStatus()
 
@@ -230,6 +365,11 @@ async function loadSelectedFile(file) {
 function resetInterface() {
   selectedFile = null
   currentResult = null
+  currentInputKey = null
+
+  referenceFile = null
+  referenceInputKey = null
+  currentVerificationResult = null
   disableReportActions()
   closeReportPreview()
   audioInput.value = ''
@@ -244,12 +384,16 @@ function resetInterface() {
   audioPanel.classList.add('hidden')
   resultsPanel.classList.add('hidden')
   overlapCard.classList.add('hidden')
+  verificationCard.classList.add(
+    'hidden'
+  )
 
   speakerTimeline.innerHTML = ''
   speakerLegend.innerHTML = ''
   segmentsBody.innerHTML = ''
   overlapList.innerHTML = ''
 
+  resetVerification()
   clearRequestStatus()
 
   wavesurfer.empty()
@@ -346,6 +490,66 @@ async function startAsyncInference(
   return body
 }
 
+async function startSpeakerVerification(
+  sourceInputKey,
+  referenceInputKeyValue,
+  speaker,
+  result,
+) {
+  const response = await fetch(
+    `${BROKER_URL}/verify`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':
+          'application/json',
+      },
+      body: JSON.stringify({
+        source_input_key:
+          sourceInputKey,
+
+        reference_input_key:
+          referenceInputKeyValue,
+
+        speaker,
+
+        segments:
+          result.segments,
+
+        overlaps:
+          result.overlaps || [],
+
+        threshold:
+          0.45,
+      }),
+    },
+  )
+
+  const rawBody =
+    await response.text()
+
+  let body
+
+  try {
+    body = JSON.parse(rawBody)
+  } catch {
+    throw new Error(
+      `Backend returned HTTP ` +
+      `${response.status}: ` +
+      (rawBody || 'empty response')
+    )
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      body.error ||
+      'Could not start speaker comparison.',
+    )
+  }
+
+  return body
+}
+
 
 function sleep(milliseconds) {
   return new Promise(
@@ -361,19 +565,35 @@ function sleep(milliseconds) {
 async function waitForInference(
   outputLocation,
   failureLocation,
+  options = {},
 ) {
   const pollIntervalMs = 3000
   const maxAttempts = 200
+
+  const processingLabel =
+    options.processingLabel ||
+    'Processing audio'
+
+  const failureLabel =
+    options.failureLabel ||
+    'Inference failed.'
 
   for (
     let attempt = 1;
     attempt <= maxAttempts;
     attempt++
   ) {
-    setRequestStatus(
-      `Processing audio… ` +
-      `(check ${attempt})`,
-    )
+    if (options.statusSetter) {
+      options.statusSetter(
+        `${processingLabel}… ` +
+        `(check ${attempt})`
+      )
+    } else {
+      setRequestStatus(
+        `${processingLabel}… ` +
+        `(check ${attempt})`
+      )
+    }
 
     const response = await fetch(
       `${BROKER_URL}/result`,
@@ -417,7 +637,7 @@ async function waitForInference(
     ) {
       throw new Error(
         body.error ||
-        'Diarization failed.',
+        failureLabel
       )
     }
 
@@ -438,7 +658,7 @@ async function waitForInference(
   }
 
   throw new Error(
-    'Diarization timed out.'
+    `${processingLabel} timed out.`
   )
 }
 
@@ -489,6 +709,8 @@ async function previewCurrentReport() {
       .createBlob(
         currentResult,
         selectedFile,
+        currentVerificationResult,
+        referenceFile,
       )
 
   currentReportUrl =
@@ -513,6 +735,8 @@ async function downloadCurrentReport() {
     .download(
       currentResult,
       selectedFile,
+      currentVerificationResult,
+      referenceFile,
     )
 }
 
@@ -531,6 +755,8 @@ async function printCurrentReport() {
       .createBlob(
         currentResult,
         selectedFile,
+        currentVerificationResult,
+        referenceFile,
       )
 
   currentReportUrl =
@@ -597,6 +823,9 @@ async function analyzeAudio() {
       uploadInfo.content_type,
     )
 
+    currentInputKey =
+      uploadInfo.input_key
+
     setRequestStatus(
       'Starting GPU diarization…'
     )
@@ -620,6 +849,7 @@ async function analyzeAudio() {
     currentResult = result
 
     renderResults(result)
+    showVerificationCard(result)
     enableReportActions()
     setRequestStatus(
       `Analysis complete in ` +
@@ -642,6 +872,340 @@ async function analyzeAudio() {
     analyzeButton.textContent =
       originalButtonText
   }
+}
+
+async function loadReferenceFile(
+  file,
+) {
+  if (!file) {
+    return
+  }
+
+  if (
+    file.size >
+    MAX_UPLOAD_BYTES
+  ) {
+    setVerificationStatus(
+      `Maximum demo file size is ` +
+      `${formatBytes(
+        MAX_UPLOAD_BYTES
+      )}.`,
+      true,
+    )
+
+    referenceAudioInput.value = ''
+    return
+  }
+
+  referenceFile = file
+  referenceInputKey = null
+  currentVerificationResult = null
+
+  referenceFileElement.textContent =
+    `${file.name} · ` +
+    `${formatBytes(file.size)}`
+
+  referenceFileElement.classList.remove(
+    'hidden'
+  )
+
+  verificationResultElement.innerHTML = ''
+  verificationResultElement.classList.add(
+    'hidden'
+  )
+
+  clearVerificationStatus()
+
+  verifySpeakerButton.disabled = false
+  clearVerificationButton.disabled = false
+}
+
+async function verifySelectedSpeaker() {
+  if (
+    !currentResult ||
+    !currentInputKey ||
+    !referenceFile
+  ) {
+    return
+  }
+
+  verifySpeakerButton.disabled = true
+  clearVerificationButton.disabled = true
+
+  const originalButtonText =
+    verifySpeakerButton.textContent
+
+  verifySpeakerButton.textContent =
+    'Comparing…'
+
+  try {
+    setVerificationStatus(
+      'Preparing reference upload…'
+    )
+
+    const uploadInfo =
+      await requestUploadUrl(
+        referenceFile
+      )
+
+    setVerificationStatus(
+      'Uploading reference voice to AWS…'
+    )
+
+    await uploadAudioToS3(
+      referenceFile,
+      uploadInfo.upload_url,
+      uploadInfo.content_type,
+    )
+
+    referenceInputKey =
+      uploadInfo.input_key
+
+    const selectedSpeaker =
+      verificationSpeaker.value
+
+    setVerificationStatus(
+      `Starting comparison for ` +
+      `${selectedSpeaker}…`
+    )
+
+    const inference =
+      await startSpeakerVerification(
+        currentInputKey,
+        referenceInputKey,
+        selectedSpeaker,
+        currentResult,
+      )
+
+    const result =
+      await waitForInference(
+        inference.output_location,
+        inference.failure_location,
+        {
+          processingLabel:
+            'Running voice comparison',
+
+          failureLabel:
+            'Speaker comparison failed.',
+
+          statusSetter:
+            setVerificationStatus,
+        },
+      )
+
+    currentVerificationResult =
+      result
+
+    renderVerificationResult(
+      result
+    )
+
+    if (
+      result.comparison_available
+    ) {
+      setVerificationStatus(
+        `Comparison complete in ` +
+        `${Number(
+          result.inference_seconds
+        ).toFixed(2)} seconds on ` +
+        `${String(
+          result.device
+        ).toUpperCase()}.`
+      )
+    } else {
+      setVerificationStatus(
+        'Comparison could not be completed.',
+        true,
+      )
+    }
+  } catch (error) {
+    console.error(error)
+
+    setVerificationStatus(
+      error.message ||
+      'Speaker comparison failed.',
+      true,
+    )
+  } finally {
+    verifySpeakerButton.disabled = false
+    clearVerificationButton.disabled = false
+
+    verifySpeakerButton.textContent =
+      originalButtonText
+  }
+}
+
+function renderVerificationResult(
+  result,
+) {
+  verificationResultElement.innerHTML = ''
+
+  if (
+    !result.comparison_available
+  ) {
+    const unavailable =
+      document.createElement('div')
+
+    unavailable.className =
+      'verification-unavailable'
+
+    unavailable.innerHTML = `
+      <strong>
+        Comparison unavailable
+      </strong>
+
+      <p>
+        ${
+          result.reason ||
+          'Insufficient usable speaker audio.'
+        }
+      </p>
+
+      ${
+        result.minimum_required_seconds
+          ? `
+            <p>
+              Minimum required:
+              <strong>
+                ${
+                  result.minimum_required_seconds
+                } seconds
+              </strong>
+            </p>
+          `
+          : ''
+      }
+    `
+
+    verificationResultElement.appendChild(
+      unavailable
+    )
+
+    verificationResultElement.classList.remove(
+      'hidden'
+    )
+
+    return
+  }
+
+  const score =
+    Number(
+      result.similarity_score
+    )
+
+  const threshold =
+    Number(
+      result.threshold
+    )
+
+  const extraction =
+    result.speaker_extraction || {}
+
+  const decisionText =
+    result.threshold_match
+      ? 'Above configured threshold'
+      : 'Below configured threshold'
+
+  const panel =
+    document.createElement('div')
+
+  panel.className =
+    'verification-result-panel'
+
+  panel.innerHTML = `
+    <div class="verification-result-grid">
+      <div class="metric-card">
+        <p class="metric-label">
+          Selected speaker
+        </p>
+
+        <p class="metric-value metric-small">
+          ${result.selected_speaker || '—'}
+        </p>
+      </div>
+
+      <div class="metric-card">
+        <p class="metric-label">
+          Similarity score
+        </p>
+
+        <p class="metric-value">
+          ${
+            Number.isFinite(score)
+              ? score.toFixed(4)
+              : '—'
+          }
+        </p>
+      </div>
+
+      <div class="metric-card">
+        <p class="metric-label">
+          Threshold
+        </p>
+
+        <p class="metric-value metric-small">
+          ${
+            Number.isFinite(threshold)
+              ? threshold.toFixed(2)
+              : '—'
+          }
+        </p>
+      </div>
+
+      <div class="metric-card">
+        <p class="metric-label">
+          Result
+        </p>
+
+        <p class="metric-value metric-small">
+          ${decisionText}
+        </p>
+      </div>
+
+      <div class="metric-card">
+        <p class="metric-label">
+          Clean speaker audio
+        </p>
+
+        <p class="metric-value metric-small">
+          ${
+            Number(
+              extraction.extracted_seconds || 0
+            ).toFixed(2)
+          } s
+        </p>
+      </div>
+
+      <div class="metric-card">
+        <p class="metric-label">
+          Overlap excluded
+        </p>
+
+        <p class="metric-value metric-small">
+          ${
+            Number(
+              extraction.excluded_overlap_seconds || 0
+            ).toFixed(2)
+          } s
+        </p>
+      </div>
+    </div>
+
+    <p class="section-note verification-note">
+      The similarity score is a model output
+      evaluated against the configured threshold.
+      It is not, by itself, a speaker identity
+      determination.
+    </p>
+  `
+
+  verificationResultElement.appendChild(
+    panel
+  )
+
+  verificationResultElement.classList.remove(
+    'hidden'
+  )
 }
 
 function renderResults(result) {
@@ -1133,6 +1697,28 @@ downloadReportButton.addEventListener(
 printReportButton.addEventListener(
   'click',
   printCurrentReport,
+)
+
+referenceAudioInput.addEventListener(
+  'change',
+  event => {
+    const file =
+      event.target.files?.[0]
+
+    if (file) {
+      loadReferenceFile(file)
+    }
+  },
+)
+
+verifySpeakerButton.addEventListener(
+  'click',
+  verifySelectedSpeaker,
+)
+
+clearVerificationButton.addEventListener(
+  'click',
+  resetVerification,
 )
 
 closeReportButton.addEventListener(

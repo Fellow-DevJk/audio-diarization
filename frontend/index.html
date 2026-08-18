@@ -209,6 +209,87 @@
         ></div>
       </section>
 
+      <section
+        id="verificationCard"
+        class="card hidden"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">
+              Voice comparison
+            </p>
+
+            <h2>
+              Compare a diarized speaker
+            </h2>
+          </div>
+
+          <p class="section-note">
+            Select one detected speaker and compare
+            their clean diarized speech against a
+            separate reference recording.
+          </p>
+        </div>
+
+        <div class="verification-grid">
+          <label class="verification-field">
+            <span class="verification-label">
+              Speaker
+            </span>
+
+            <select
+              id="verificationSpeaker"
+              class="verification-select"
+            ></select>
+          </label>
+
+          <label class="verification-field">
+            <span class="verification-label">
+              Reference voice sample
+            </span>
+
+            <input
+              id="referenceAudioInput"
+              type="file"
+              accept=".wav,.flac,.mp3,.m4a,audio/*"
+            >
+          </label>
+        </div>
+
+        <div
+          id="referenceFile"
+          class="selected-file hidden"
+        ></div>
+
+        <div class="actions">
+          <button
+            id="verifySpeakerButton"
+            class="button button-primary"
+            disabled
+          >
+            Compare voice
+          </button>
+
+          <button
+            id="clearVerificationButton"
+            class="button button-secondary"
+            disabled
+          >
+            Clear comparison
+          </button>
+        </div>
+
+        <div
+          id="verificationStatus"
+          class="request-status hidden"
+        ></div>
+
+        <div
+          id="verificationResult"
+          class="verification-result hidden"
+        ></div>
+      </section>
+
       <section class="card">
         <div class="section-heading">
           <div>

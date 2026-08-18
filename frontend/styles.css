@@ -455,6 +455,57 @@ td {
   border-radius: 50%;
 }
 
+.verification-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.verification-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.verification-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.verification-select,
+.verification-field input[type='file'] {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  color: #172033;
+}
+
+.verification-result {
+  margin-top: 1rem;
+}
+
+.verification-result-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.verification-note {
+  margin-top: 1rem;
+}
+
+.verification-unavailable {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
 .overlap-item {
   padding: 11px 0;
   border-bottom: 1px solid var(--border);
@@ -489,6 +540,10 @@ td {
   .timeline-axis {
     grid-template-columns: 82px 1fr;
     gap: 8px;
+  }
+
+  .verification-grid {
+    grid-template-columns: 1fr;
   }
 }
 

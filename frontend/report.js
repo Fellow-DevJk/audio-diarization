@@ -1295,10 +1295,490 @@
         9
     }
   }
+
+  function buildVerificationInterpretationSections(
+    verification,
+    referenceFile,
+  ) {
+    if (
+      !verification ||
+      !verification.comparison_available
+    ) {
+      return []
+    }
+
+    const score =
+      safeNumber(
+        verification.similarity_score
+      )
+
+    const threshold =
+      safeNumber(
+        verification.threshold
+      )
+
+    const extraction =
+      verification.speaker_extraction || {}
+
+    const selectedSpeaker =
+      verification.selected_speaker ||
+      'selected speaker'
+
+    const referenceFilename =
+      referenceFile?.name ||
+      verification.reference_filename ||
+      'reference recording'
+
+    const extractedSeconds =
+      safeNumber(
+        extraction.extracted_seconds
+      )
+
+    const overlapExcluded =
+      safeNumber(
+        extraction.excluded_overlap_seconds
+      )
+
+    const sourceSegmentCount =
+      safeNumber(
+        extraction.source_segment_count
+      )
+
+    const cleanFragmentCount =
+      safeNumber(
+        extraction.clean_fragment_count
+      )
+
+    const sections = []
+
+    sections.push({
+      title:
+        'Comparison overview',
+
+      text:
+        `${selectedSpeaker} was compared ` +
+        `against the supplied reference ` +
+        `recording "${referenceFilename}" ` +
+        `using the ${verification.model || 'speaker verification'} ` +
+        `model. The resulting similarity ` +
+        `score was ${score.toFixed(4)}. ` +
+        `The configured comparison threshold ` +
+        `was ${threshold.toFixed(2)}.`,
+    })
+
+    sections.push({
+      title:
+        'Threshold assessment',
+
+      text:
+        verification.threshold_match
+          ? `The similarity score of ` +
+            `${score.toFixed(4)} is above ` +
+            `the configured threshold of ` +
+            `${threshold.toFixed(2)}. ` +
+            `Under this demonstration ` +
+            `configuration, the model ` +
+            `therefore returns a threshold ` +
+            `decision of "match". This is a ` +
+            `model-threshold outcome and must ` +
+            `not be interpreted as proof of ` +
+            `real-world speaker identity.`
+          : `The similarity score of ` +
+            `${score.toFixed(4)} is below ` +
+            `the configured threshold of ` +
+            `${threshold.toFixed(2)}. ` +
+            `Under this demonstration ` +
+            `configuration, the model ` +
+            `therefore returns a threshold ` +
+            `decision of "no match". This is ` +
+            `a model-threshold outcome rather ` +
+            `than a determination that two ` +
+            `recordings necessarily belong ` +
+            `to different real-world people.`,
+    })
+
+    sections.push({
+      title:
+        'Source speech preparation',
+
+      text:
+        `The comparison used approximately ` +
+        `${extractedSeconds.toFixed(2)} ` +
+        `seconds of speech extracted from ` +
+        `${selectedSpeaker}. ` +
+        `${sourceSegmentCount} source ` +
+        `segment${sourceSegmentCount === 1 ? '' : 's'} ` +
+        `contributed to the extraction, ` +
+        `producing ${cleanFragmentCount} clean ` +
+        `fragment${cleanFragmentCount === 1 ? '' : 's'}. ` +
+        `Approximately ` +
+        `${overlapExcluded.toFixed(2)} seconds ` +
+        `of detected overlapping speech were ` +
+        `excluded before speaker verification.`,
+    })
+
+    sections.push({
+      title:
+        'Processing performance',
+
+      text:
+        `Speaker verification completed on ` +
+        `${String(
+          verification.device || 'unknown'
+        ).toUpperCase()} in approximately ` +
+        `${safeNumber(
+          verification.inference_seconds
+        ).toFixed(3)} seconds. ` +
+        `The reported model load time was ` +
+        `${safeNumber(
+          verification.model_load_seconds
+        ).toFixed(3)} seconds.`,
+    })
+
+    sections.push({
+      title:
+        'Interpretation limits',
+
+      text:
+        `Speaker verification scores are ` +
+        `similarity measures produced by an ` +
+        `automated model. Their meaning depends ` +
+        `on the model, threshold calibration, ` +
+        `recording quality, speech duration, ` +
+        `noise, channel conditions, language, ` +
+        `speaker variability, and other factors. ` +
+        `A score above or below the configured ` +
+        `threshold does not by itself establish ` +
+        `or exclude the real-world identity of ` +
+        `a speaker. This comparison is intended ` +
+        `for demonstration and analysis use and ` +
+        `is not a forensic identification or ` +
+        `expert legal opinion.`,
+    })
+
+    return sections
+  }
+
+  function drawVerificationSummary(
+    doc,
+    verification,
+    sourceFilename,
+    referenceFile,
+  ) {
+    const extraction =
+      verification.speaker_extraction || {}
+
+    const score =
+      safeNumber(
+        verification.similarity_score
+      )
+
+    const threshold =
+      safeNumber(
+        verification.threshold
+      )
+
+    const selectedSpeaker =
+      verification.selected_speaker || '—'
+
+    const referenceFilename =
+      referenceFile?.name ||
+      verification.reference_filename ||
+      '—'
+
+    addPageHeader(
+      doc,
+      'Voice comparison',
+    )
+
+    doc.setFontSize(9)
+    doc.setFont(
+      'helvetica',
+      'normal',
+    )
+
+    doc.setTextColor(
+      51,
+      65,
+      85,
+    )
+
+    doc.text(
+      `Source recording: ${sourceFilename}`,
+      14,
+      36,
+    )
+
+    doc.text(
+      `Diarized speaker: ${selectedSpeaker}`,
+      14,
+      42,
+    )
+
+    doc.text(
+      `Reference recording: ${referenceFilename}`,
+      14,
+      48,
+    )
+
+    doc.text(
+      `Model: ${verification.model || '—'}`,
+      14,
+      54,
+    )
+
+    const metricWidth = 56
+
+    drawMetric(
+      doc,
+      14,
+      64,
+      metricWidth,
+      'Similarity score',
+      score.toFixed(4),
+    )
+
+    drawMetric(
+      doc,
+      76,
+      64,
+      metricWidth,
+      'Threshold',
+      threshold.toFixed(2),
+    )
+
+    drawMetric(
+      doc,
+      138,
+      64,
+      metricWidth,
+      'Threshold result',
+      verification.threshold_match
+        ? 'Above'
+        : 'Below',
+    )
+
+    drawMetric(
+      doc,
+      14,
+      90,
+      metricWidth,
+      'Clean speaker audio',
+      `${safeNumber(
+        extraction.extracted_seconds
+      ).toFixed(2)} s`,
+    )
+
+    drawMetric(
+      doc,
+      76,
+      90,
+      metricWidth,
+      'Overlap excluded',
+      `${safeNumber(
+        extraction.excluded_overlap_seconds
+      ).toFixed(2)} s`,
+    )
+
+    drawMetric(
+      doc,
+      138,
+      90,
+      metricWidth,
+      'Device',
+      String(
+        verification.device || 'unknown'
+      ).toUpperCase(),
+    )
+
+    doc.setFont(
+      'helvetica',
+      'bold',
+    )
+
+    doc.setFontSize(11)
+
+    doc.setTextColor(
+      15,
+      23,
+      42,
+    )
+
+    doc.text(
+      'Extraction details',
+      14,
+      124,
+    )
+
+    const extractionRows = [
+      [
+        'Source segments',
+        safeNumber(
+          extraction.source_segment_count
+        ),
+      ],
+      [
+        'Clean fragments',
+        safeNumber(
+          extraction.clean_fragment_count
+        ),
+      ],
+      [
+        'Source speaking time',
+        `${safeNumber(
+          extraction.source_speaking_seconds
+        ).toFixed(2)} s`,
+      ],
+      [
+        'Excluded overlap',
+        `${safeNumber(
+          extraction.excluded_overlap_seconds
+        ).toFixed(2)} s`,
+      ],
+      [
+        'Extracted clean speech',
+        `${safeNumber(
+          extraction.extracted_seconds
+        ).toFixed(2)} s`,
+      ],
+      [
+        'Verification inference',
+        `${safeNumber(
+          verification.inference_seconds
+        ).toFixed(3)} s`,
+      ],
+    ]
+
+    doc.autoTable({
+      startY: 130,
+
+      head: [[
+        'Measure',
+        'Value',
+      ]],
+
+      body:
+        extractionRows,
+
+      theme: 'grid',
+
+      styles: {
+        fontSize: 8.5,
+        cellPadding: 2.6,
+      },
+
+      headStyles: {
+        fillColor: [
+          30,
+          41,
+          59,
+        ],
+      },
+
+      margin: {
+        left: 14,
+        right: 14,
+      },
+    })
+
+    const decisionY =
+      (
+        doc.lastAutoTable?.finalY ||
+        170
+      ) + 12
+
+    doc.setFont(
+      'helvetica',
+      'bold',
+    )
+
+    doc.setFontSize(11)
+
+    doc.text(
+      'Threshold assessment',
+      14,
+      decisionY,
+    )
+
+    doc.setFont(
+      'helvetica',
+      'normal',
+    )
+
+    doc.setFontSize(9.5)
+
+    doc.setTextColor(
+      51,
+      65,
+      85,
+    )
+
+    const decisionText =
+      verification.threshold_match
+        ? `The similarity score of ` +
+          `${score.toFixed(4)} is above ` +
+          `the configured threshold of ` +
+          `${threshold.toFixed(2)}.`
+        : `The similarity score of ` +
+          `${score.toFixed(4)} is below ` +
+          `the configured threshold of ` +
+          `${threshold.toFixed(2)}.`
+
+    const decisionLines =
+      doc.splitTextToSize(
+        decisionText,
+        176,
+      )
+
+    doc.text(
+      decisionLines,
+      14,
+      decisionY + 7,
+      {
+        lineHeightFactor: 1.45,
+      },
+    )
+
+    const noteY =
+      decisionY +
+      7 +
+      decisionLines.length * 5 +
+      10
+
+    doc.setFont(
+      'helvetica',
+      'italic',
+    )
+
+    doc.setFontSize(8.5)
+
+    doc.setTextColor(
+      100,
+      116,
+      139,
+    )
+
+    const noteLines =
+      doc.splitTextToSize(
+        'This threshold result is an automated speaker-similarity assessment. It is not, by itself, a determination of speaker identity.',
+        176,
+      )
+
+    doc.text(
+      noteLines,
+      14,
+      noteY,
+      {
+        lineHeightFactor: 1.4,
+      },
+    )
+  }
   
   async function generateDiarizationReport(
     result,
     file,
+    verification = null,
+    referenceFile = null,
   ) {
     if (
       !window.jspdf ||
@@ -1733,6 +2213,43 @@
     }
 
     // ==========================================
+    // OPTIONAL: SPEAKER VERIFICATION
+    // ==========================================
+
+    if (
+      verification &&
+      verification.comparison_available
+    ) {
+      doc.addPage()
+
+      drawVerificationSummary(
+        doc,
+        verification,
+        filename,
+        referenceFile,
+      )
+
+      doc.addPage()
+
+      addPageHeader(
+        doc,
+        'Voice comparison interpretation',
+      )
+
+      const verificationSections =
+        buildVerificationInterpretationSections(
+          verification,
+          referenceFile,
+        )
+
+      drawInterpretationSections(
+        doc,
+        verificationSections,
+        38,
+      )
+    }
+
+    // ==========================================
     // FINAL PAGE: AUTOMATED INTERPRETATION
     // ==========================================
 
@@ -1771,21 +2288,29 @@
     async generate(
       result,
       file,
+      verification = null,
+      referenceFile = null,
     ) {
       return await generateDiarizationReport(
         result,
         file,
+        verification,
+        referenceFile,
       )
     },
 
     async createBlob(
       result,
       file,
+      verification = null,
+      referenceFile = null,
     ) {
       const doc =
         await generateDiarizationReport(
           result,
           file,
+          verification,
+          referenceFile,
         )
 
       return doc.output('blob')
@@ -1794,11 +2319,15 @@
     async download(
       result,
       file,
+      verification = null,
+      referenceFile = null,
     ) {
       const doc =
         await generateDiarizationReport(
           result,
           file,
+          verification,
+          referenceFile,
         )
 
       doc.save(
