@@ -29,3 +29,4 @@ Thumbs.db
 **/__pycache__/
 sample_audio/
 broker.zip
+audio_cache/

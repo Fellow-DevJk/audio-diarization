@@ -671,7 +671,632 @@
     }
   }
 
-   async function generateDiarizationReport(
+  function mergeIntervals(intervals) {
+    if (!intervals.length) {
+      return []
+    }
+
+    const ordered = intervals
+      .map(([start, end]) => [
+        safeNumber(start),
+        safeNumber(end),
+      ])
+      .filter(
+        ([start, end]) =>
+          end > start
+      )
+      .sort(
+        (a, b) =>
+          a[0] - b[0]
+      )
+
+    if (!ordered.length) {
+      return []
+    }
+
+    const merged = [
+      [...ordered[0]],
+    ]
+
+    for (
+      let index = 1;
+      index < ordered.length;
+      index++
+    ) {
+      const current =
+        ordered[index]
+
+      const previous =
+        merged[
+          merged.length - 1
+        ]
+
+      if (
+        current[0] <=
+        previous[1]
+      ) {
+        previous[1] =
+          Math.max(
+            previous[1],
+            current[1],
+          )
+      } else {
+        merged.push(
+          [...current]
+        )
+      }
+    }
+
+    return merged
+  }
+
+
+  function buildAnalysisSummary(
+    result
+  ) {
+    const speakers =
+      result.speakers || []
+
+    const segments =
+      result.segments || []
+
+    const overlaps =
+      result.overlaps || []
+
+    const stats =
+      result.speaker_stats || {}
+
+    const duration =
+      Math.max(
+        0,
+        safeNumber(
+          result.audio_duration_seconds
+        ),
+      )
+
+    const rankedSpeakers =
+      speakers
+        .map(
+          speaker => {
+            const speakerStats =
+              stats[speaker] || {}
+
+            return {
+              speaker,
+
+              speakingSeconds:
+                safeNumber(
+                  speakerStats
+                    .speaking_seconds
+                ),
+
+              percentage:
+                safeNumber(
+                  speakerStats
+                    .speaking_percentage
+                ),
+
+              segmentCount:
+                safeNumber(
+                  speakerStats
+                    .segment_count
+                ),
+            }
+          }
+        )
+        .sort(
+          (a, b) =>
+            b.speakingSeconds -
+            a.speakingSeconds
+        )
+
+    const segmentDurations =
+      segments
+        .map(
+          segment => ({
+            speaker:
+              segment.speaker,
+
+            start:
+              safeNumber(
+                segment.start
+              ),
+
+            end:
+              safeNumber(
+                segment.end
+              ),
+
+            duration:
+              Math.max(
+                0,
+                safeNumber(
+                  segment.end
+                ) -
+                safeNumber(
+                  segment.start
+                ),
+              ),
+          })
+        )
+        .filter(
+          segment =>
+            segment.duration > 0
+        )
+
+    const longestSegment =
+      segmentDurations
+        .reduce(
+          (
+            longest,
+            segment,
+          ) =>
+            !longest ||
+            segment.duration >
+              longest.duration
+              ? segment
+              : longest,
+          null,
+        )
+
+    const averageSegmentSeconds =
+      segmentDurations.length
+        ? segmentDurations
+            .reduce(
+              (
+                total,
+                segment,
+              ) =>
+                total +
+                segment.duration,
+              0,
+            ) /
+          segmentDurations.length
+        : 0
+
+    /*
+    * Use the union of all diarization
+    * intervals rather than summing
+    * speaker durations.
+    *
+    * This avoids double-counting
+    * overlapping speech.
+    */
+    const mergedSpeech =
+      mergeIntervals(
+        segments.map(
+          segment => [
+            segment.start,
+            segment.end,
+          ]
+        )
+      )
+
+    const detectedSpeechSeconds =
+      mergedSpeech.reduce(
+        (
+          total,
+          [start, end],
+        ) =>
+          total +
+          Math.max(
+            0,
+            end - start
+          ),
+        0,
+      )
+
+    const speechCoverage =
+      duration > 0
+        ? Math.min(
+            100,
+            (
+              detectedSpeechSeconds /
+              duration
+            ) * 100,
+          )
+        : 0
+
+    const overlapSeconds =
+      safeNumber(
+        result.overlap_seconds
+      )
+
+    const overlapPercentage =
+      duration > 0
+        ? Math.min(
+            100,
+            (
+              overlapSeconds /
+              duration
+            ) * 100,
+          )
+        : 0
+
+    return {
+      duration,
+      rankedSpeakers,
+      longestSegment,
+      averageSegmentSeconds,
+      detectedSpeechSeconds,
+      speechCoverage,
+
+      overlapCount:
+        safeNumber(
+          result.overlap_count
+        ),
+
+      overlapSeconds,
+      overlapPercentage,
+
+      inferenceSeconds:
+        safeNumber(
+          result.inference_seconds
+        ),
+
+      realTimeFactor:
+        safeNumber(
+          result.real_time_factor
+        ),
+
+      device:
+        String(
+          result.device ||
+          'unknown'
+        ).toUpperCase(),
+    }
+  }
+
+  function buildInterpretationSections(
+    result
+  ) {
+    const analysis =
+      buildAnalysisSummary(
+        result
+      )
+
+    const dominant =
+      analysis.rankedSpeakers[0]
+
+    const sections = []
+
+    sections.push({
+      title:
+        'Recording overview',
+
+      text:
+        `The recording produced ` +
+        `${safeNumber(
+          result.speaker_count
+        )} distinct speaker cluster` +
+        `${
+          safeNumber(
+            result.speaker_count
+          ) === 1
+            ? ''
+            : 's'
+        } across ` +
+        `${safeNumber(
+          result.segment_count
+        )} detected speech segment` +
+        `${
+          safeNumber(
+            result.segment_count
+          ) === 1
+            ? ''
+            : 's'
+        }. ` +
+        `The analyzed recording duration ` +
+        `was approximately ` +
+        `${analysis.duration.toFixed(2)} ` +
+        `seconds.`,
+    })
+
+    if (dominant) {
+      let participation =
+        `${dominant.speaker} was the ` +
+        `dominant detected speaker, ` +
+        `with approximately ` +
+        `${dominant.speakingSeconds
+          .toFixed(2)} seconds of ` +
+        `speaker activity ` +
+        `(${dominant.percentage
+          .toFixed(1)}%) across ` +
+        `${dominant.segmentCount} ` +
+        `segment` +
+        `${
+          dominant.segmentCount === 1
+            ? ''
+            : 's'
+        }.`
+
+      if (
+        analysis.rankedSpeakers
+          .length > 1
+      ) {
+        const others =
+          analysis.rankedSpeakers
+            .slice(1)
+            .map(
+              speaker =>
+                `${speaker.speaker}: ` +
+                `${speaker
+                  .speakingSeconds
+                  .toFixed(2)} s ` +
+                `(${speaker
+                  .percentage
+                  .toFixed(1)}%, ` +
+                `${speaker
+                  .segmentCount} ` +
+                `segment${
+                  speaker
+                    .segmentCount === 1
+                    ? ''
+                    : 's'
+                })`
+            )
+            .join('; ')
+
+        participation +=
+          ` Other detected speaker ` +
+          `activity was: ${others}.`
+      }
+
+      sections.push({
+        title:
+          'Speaker participation',
+
+        text:
+          participation,
+      })
+    }
+
+    if (
+      analysis.longestSegment
+    ) {
+      sections.push({
+        title:
+          'Turn structure',
+
+        text:
+          `The longest continuous ` +
+          `detected speaker segment ` +
+          `lasted approximately ` +
+          `${analysis.longestSegment
+            .duration
+            .toFixed(2)} seconds and ` +
+          `was assigned to ` +
+          `${analysis.longestSegment
+            .speaker}. ` +
+          `Across all detected segments, ` +
+          `the average segment duration ` +
+          `was approximately ` +
+          `${analysis
+            .averageSegmentSeconds
+            .toFixed(2)} seconds.`,
+      })
+    }
+
+    if (
+      analysis.overlapCount > 0
+    ) {
+      sections.push({
+        title:
+          'Cross-talk analysis',
+
+        text:
+          `${analysis.overlapCount} ` +
+          `overlapping-speech interval` +
+          `${
+            analysis.overlapCount === 1
+              ? ' was'
+              : 's were'
+          } detected, totalling ` +
+          `approximately ` +
+          `${analysis.overlapSeconds
+            .toFixed(2)} seconds. ` +
+          `This represents approximately ` +
+          `${analysis.overlapPercentage
+            .toFixed(1)}% of the ` +
+          `recording duration. ` +
+          `These regions indicate periods ` +
+          `where activity from more than ` +
+          `one speaker cluster overlaps ` +
+          `in time.`,
+      })
+    } else {
+      sections.push({
+        title:
+          'Cross-talk analysis',
+
+        text:
+          `No overlapping-speech ` +
+          `intervals were detected in ` +
+          `this recording. The diarization ` +
+          `output therefore contains no ` +
+          `identified periods of ` +
+          `simultaneous activity between ` +
+          `different speaker clusters.`,
+      })
+    }
+
+    const remaining =
+      Math.max(
+        0,
+        analysis.duration -
+        analysis.detectedSpeechSeconds
+      )
+
+    sections.push({
+      title:
+        'Detected speech coverage',
+
+      text:
+        `Diarized speech intervals cover ` +
+        `approximately ` +
+        `${analysis.speechCoverage
+          .toFixed(1)}% of the analyzed ` +
+        `recording ` +
+        `(${analysis.detectedSpeechSeconds
+          .toFixed(2)} seconds). ` +
+        `Approximately ` +
+        `${remaining.toFixed(2)} seconds ` +
+        `fall outside detected speaker ` +
+        `intervals and may contain silence, ` +
+        `background sound, non-speech ` +
+        `content, or regions not assigned ` +
+        `to a speaker cluster.`,
+    })
+
+    sections.push({
+      title:
+        'Processing performance',
+
+      text:
+        `Inference completed on ` +
+        `${analysis.device} in ` +
+        `${analysis.inferenceSeconds
+          .toFixed(2)} seconds, with a ` +
+        `real-time factor of ` +
+        `${analysis.realTimeFactor
+          .toFixed(2)}x. ` +
+        (
+          analysis.realTimeFactor > 0 &&
+          analysis.realTimeFactor < 1
+            ? `For this recording, the ` +
+              `model completed inference ` +
+              `faster than the duration ` +
+              `of the input audio.`
+            : analysis.realTimeFactor >= 1
+              ? `For this recording, ` +
+                `inference required at ` +
+                `least as much processing ` +
+                `time as the input audio ` +
+                `duration.`
+              : ''
+        ),
+    })
+
+    sections.push({
+      title:
+        'Interpretation limits',
+
+      text:
+        `Speaker labels such as ` +
+        `SPEAKER_00 are anonymous ` +
+        `model-generated cluster ` +
+        `identifiers. They do not ` +
+        `establish the real-world ` +
+        `identity of a speaker. ` +
+        `Speaker boundaries, overlap ` +
+        `regions, participation measures, ` +
+        `and timing statistics are ` +
+        `automated estimates and may be ` +
+        `affected by recording quality, ` +
+        `noise, reverberation, short ` +
+        `utterances, cross-talk, and ` +
+        `domain mismatch. This report is ` +
+        `intended for analysis and ` +
+        `demonstration use and is not a ` +
+        `forensic identity determination ` +
+        `or expert legal opinion.`,
+    })
+
+    return sections
+  }
+
+  function drawInterpretationSections(
+    doc,
+    sections,
+    startY = 38,
+  ) {
+    let y =
+      startY
+
+    const pageBottom =
+      270
+
+    const textWidth =
+      176
+
+    for (
+      const section of sections
+    ) {
+      const lines =
+        doc.splitTextToSize(
+          section.text,
+          textWidth,
+        )
+
+      const estimatedHeight =
+        8 +
+        lines.length * 5
+
+      if (
+        y +
+        estimatedHeight >
+        pageBottom
+      ) {
+        doc.addPage()
+
+        addPageHeader(
+          doc,
+          'Automated interpretation — continued',
+        )
+
+        y = 38
+      }
+
+      doc.setFont(
+        'helvetica',
+        'bold',
+      )
+
+      doc.setFontSize(11)
+
+      doc.setTextColor(
+        15,
+        23,
+        42,
+      )
+
+      doc.text(
+        section.title,
+        14,
+        y,
+      )
+
+      y += 7
+
+      doc.setFont(
+        'helvetica',
+        'normal',
+      )
+
+      doc.setFontSize(9.5)
+
+      doc.setTextColor(
+        51,
+        65,
+        85,
+      )
+
+      doc.text(
+        lines,
+        14,
+        y,
+        {
+          lineHeightFactor: 1.45,
+        },
+      )
+
+      y +=
+        lines.length * 5 +
+        9
+    }
+  }
+  
+  async function generateDiarizationReport(
     result,
     file,
   ) {
@@ -867,6 +1492,30 @@
         right: 14,
       },
     })
+    doc.setFontSize(7.5)
+
+    doc.setFont(
+      'helvetica',
+      'italic',
+    )
+
+    doc.setTextColor(
+      100,
+      116,
+      139,
+    )
+
+    const speakerShareNote =
+      doc.splitTextToSize(
+        'Speaker shares are measured independently against total recording duration and may sum above 100% when overlapping speech is present.',
+        180,
+      )
+
+    doc.text(
+      speakerShareNote,
+      14,
+      (doc.lastAutoTable?.finalY || 130) + 6,
+    )
 
     // ==========================================
     // PAGE 2: VISUAL SPEAKER ANALYSIS
@@ -1083,50 +1732,28 @@
       })
     }
 
+    // ==========================================
+    // FINAL PAGE: AUTOMATED INTERPRETATION
+    // ==========================================
+
     doc.addPage()
 
     addPageHeader(
       doc,
-      'Method and interpretation',
+      'Automated interpretation',
     )
 
-    doc.setFontSize(10)
-    doc.setFont(
-      'helvetica',
-      'normal',
-    )
-
-    doc.setTextColor(
-      51,
-      65,
-      85,
-    )
-
-    const note = [
-      'This report summarizes automated speaker diarization output.',
-      '',
-      'Speaker labels such as SPEAKER_00 are anonymous cluster identifiers assigned by the diarization model. They do not establish the real-world identity of a person.',
-      '',
-      'Speaker boundaries, overlap intervals, and speaking-time statistics are algorithmic estimates and may be affected by recording quality, background noise, reverberation, short utterances, cross-talk, and domain mismatch.',
-      '',
-      'This document is an analysis report for demonstration and engineering use. It is not an official forensic identification, expert opinion, or legal determination of speaker identity.',
-    ].join('\n')
-
-    const wrapped =
-      doc.splitTextToSize(
-        note,
-        175,
+    const interpretationSections =
+      buildInterpretationSections(
+        result
       )
 
-    doc.text(
-      wrapped,
-      14,
+    drawInterpretationSections(
+      doc,
+      interpretationSections,
       38,
-      {
-        lineHeightFactor: 1.5,
-      },
     )
-
+    
     addFooter(doc)
 
     return doc
